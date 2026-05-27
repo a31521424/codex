@@ -1,0 +1,131 @@
+name: personal-cli-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create or update. Defaults to personal-cli-<short-sha>."
+        required: false
+        type: string
+      prerelease:
+        description: "Mark the GitHub Release as a prerelease when creating it."
+        required: false
+        type: boolean
+        default: true
+  push:
+    tags:
+      - "personal-cli-v*"
+      - "custom-codex-cli-v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: personal-cli-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-linux-x64:
+    name: Build Linux x64 CLI
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: codex-rs
+    env:
+      TARGET_NAME: x86_64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@a0b273b48ed29de4470960879e8381ff45632f26 # 1.93.0
+
+      - name: Install native dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pkg-config libssl-dev
+
+      - name: Build codex CLI
+        run: cargo build --release --locked -p codex-cli
+
+      - name: Stage archive
+        id: stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage_dir="${RUNNER_TEMP}/codex-cli-${TARGET_NAME}"
+          archive="${RUNNER_TEMP}/codex-cli-${TARGET_NAME}.tar.gz"
+          checksum="${archive}.sha256"
+
+          mkdir -p "${stage_dir}"
+          cp target/release/codex "${stage_dir}/codex"
+          chmod 0755 "${stage_dir}/codex"
+
+          tar -C "${stage_dir}" -czf "${archive}" codex
+          sha256sum "${archive}" > "${checksum}"
+
+          echo "archive=${archive}" >> "${GITHUB_OUTPUT}"
+          echo "checksum=${checksum}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: codex-cli-${{ env.TARGET_NAME }}
+          path: |
+            ${{ steps.stage.outputs.archive }}
+            ${{ steps.stage.outputs.checksum }}
+          if-no-files-found: error
+
+      - name: Publish GitHub Release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_TAG: ${{ inputs.tag }}
+          REQUESTED_PRERELEASE: ${{ inputs.prerelease }}
+          ARCHIVE: ${{ steps.stage.outputs.archive }}
+          CHECKSUM: ${{ steps.stage.outputs.checksum }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_tag="${GITHUB_REF_NAME}"
+          elif [[ -n "${REQUESTED_TAG}" ]]; then
+            release_tag="${REQUESTED_TAG}"
+          else
+            release_tag="personal-cli-${GITHUB_SHA::12}"
+          fi
+
+          notes_path="${RUNNER_TEMP}/personal-cli-release-notes.md"
+          cat > "${notes_path}" <<EOF
+          Personal Codex CLI build.
+
+          Commit: ${GITHUB_SHA}
+
+          This build includes the local image generation tool option passthrough. Configure it at runtime with environment variables such as:
+
+          \`\`\`bash
+          CODEX_IMAGE_GENERATION_SIZE=3840x2160 \\
+          CODEX_IMAGE_GENERATION_QUALITY=high \\
+          CODEX_IMAGE_GENERATION_OUTPUT_FORMAT=png \\
+          codex exec --enable image_generation "generate an image"
+          \`\`\`
+          EOF
+
+          if gh release view "${release_tag}" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
+            gh release upload "${release_tag}" "${ARCHIVE}" "${CHECKSUM}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --clobber
+          else
+            args=(
+              release create "${release_tag}" "${ARCHIVE}" "${CHECKSUM}"
+              --repo "${GITHUB_REPOSITORY}"
+              --target "${GITHUB_SHA}"
+              --title "${release_tag}"
+              --notes-file "${notes_path}"
+            )
+            if [[ "${GITHUB_EVENT_NAME}" != "workflow_dispatch" || "${REQUESTED_PRERELEASE}" == "true" || -z "${REQUESTED_PRERELEASE}" ]]; then
+              args+=(--prerelease)
+            fi
+            gh "${args[@]}"
+          fi
