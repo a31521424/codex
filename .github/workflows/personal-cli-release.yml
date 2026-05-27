@@ -28,11 +28,16 @@ jobs:
   build-linux-x64:
     name: Build Linux x64 CLI
     runs-on: ubuntu-24.04
+    timeout-minutes: 120
     defaults:
       run:
         working-directory: codex-rs
     env:
       TARGET_NAME: x86_64-unknown-linux-gnu
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+      CARGO_PROFILE_RELEASE_LTO: "false"
+      CARGO_TERM_COLOR: always
+      RUSTFLAGS: "-C linker=clang -C link-arg=-fuse-ld=lld"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -40,14 +45,39 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@a0b273b48ed29de4470960879e8381ff45632f26 # 1.93.0
 
+      - name: Cache Cargo registry and build output
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            codex-rs/target
+          key: personal-cli-linux-x64-rust-1.93.0-nolto-lld-${{ hashFiles('codex-rs/Cargo.lock', 'codex-rs/rust-toolchain.toml') }}-${{ github.sha }}
+          restore-keys: |
+            personal-cli-linux-x64-rust-1.93.0-nolto-lld-${{ hashFiles('codex-rs/Cargo.lock', 'codex-rs/rust-toolchain.toml') }}-
+            personal-cli-linux-x64-rust-1.93.0-nolto-lld-
+
       - name: Install native dependencies
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends pkg-config libssl-dev
+          sudo apt-get install -y --no-install-recommends clang lld pkg-config libssl-dev
 
       - name: Build codex CLI
-        run: cargo build --release --locked -p codex-cli
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cargo build --release --locked -p codex-cli --bin codex &
+          build_pid="$!"
+
+          while kill -0 "${build_pid}" 2> /dev/null; do
+            echo "Build still running at $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            sleep 60
+          done
+
+          wait "${build_pid}"
 
       - name: Stage archive
         id: stage
