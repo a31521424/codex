@@ -740,6 +740,7 @@ mod tests {
                     output_tokens: 3,
                     reasoning_output_tokens: 1,
                     total_tokens: 13,
+                    ..TokenUsage::default()
                 }),
             },
             JobResult {
@@ -750,6 +751,7 @@ mod tests {
                     output_tokens: 2,
                     reasoning_output_tokens: 0,
                     total_tokens: 9,
+                    ..TokenUsage::default()
                 }),
             },
             JobResult {
@@ -770,6 +772,7 @@ mod tests {
                 output_tokens: 5,
                 reasoning_output_tokens: 1,
                 total_tokens: 22,
+                ..TokenUsage::default()
             })
         );
     }

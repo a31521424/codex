@@ -2,6 +2,7 @@ use codex_protocol::models::WebSearchAction;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value as JsonValue;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use ts_rs::TS;
 
@@ -67,6 +68,34 @@ pub struct Usage {
     pub output_tokens: i64,
     /// The number of reasoning output tokens used during the turn.
     pub reasoning_output_tokens: i64,
+    /// The number of text input tokens reported by image generation usage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
+    pub input_text_tokens: Option<i64>,
+    /// The number of image input tokens reported by image generation usage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
+    pub input_image_tokens: Option<i64>,
+    /// The number of image output tokens reported by image generation usage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
+    pub image_output_tokens: Option<i64>,
+    /// The total image generation tokens reported by Responses usage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
+    pub image_generation_total_tokens: Option<i64>,
+    /// The number of streamed partial images reported by Responses usage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
+    pub partial_images: Option<i64>,
+    /// Source of enhanced usage accounting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "string")]
+    pub usage_source: Option<String>,
+    /// Sanitized summaries of usage detail fields this version does not model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "Record<string, unknown>")]
+    pub unknown_usage_details: Option<BTreeMap<String, JsonValue>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]

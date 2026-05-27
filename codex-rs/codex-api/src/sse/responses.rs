@@ -11,7 +11,9 @@ use codex_protocol::protocol::TokenUsage;
 use eventsource_stream::Eventsource;
 use futures::StreamExt;
 use serde::Deserialize;
+use serde_json::Map;
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration;
@@ -100,46 +102,9 @@ struct Error {
 struct ResponseCompleted {
     id: String,
     #[serde(default)]
-    usage: Option<ResponseCompletedUsage>,
+    usage: Option<Value>,
     #[serde(default)]
     end_turn: Option<bool>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ResponseCompletedUsage {
-    input_tokens: i64,
-    input_tokens_details: Option<ResponseCompletedInputTokensDetails>,
-    output_tokens: i64,
-    output_tokens_details: Option<ResponseCompletedOutputTokensDetails>,
-    total_tokens: i64,
-}
-
-impl From<ResponseCompletedUsage> for TokenUsage {
-    fn from(val: ResponseCompletedUsage) -> Self {
-        TokenUsage {
-            input_tokens: val.input_tokens,
-            cached_input_tokens: val
-                .input_tokens_details
-                .map(|d| d.cached_tokens)
-                .unwrap_or(0),
-            output_tokens: val.output_tokens,
-            reasoning_output_tokens: val
-                .output_tokens_details
-                .map(|d| d.reasoning_tokens)
-                .unwrap_or(0),
-            total_tokens: val.total_tokens,
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct ResponseCompletedInputTokensDetails {
-    cached_tokens: i64,
-}
-
-#[derive(Debug, Deserialize)]
-struct ResponseCompletedOutputTokensDetails {
-    reasoning_tokens: i64,
 }
 
 #[derive(Deserialize, Debug)]
@@ -155,6 +120,160 @@ pub struct ResponsesStreamEvent {
     delta: Option<String>,
     summary_index: Option<i64>,
     content_index: Option<i64>,
+}
+
+fn parse_response_completed_usage(value: &Value) -> TokenUsage {
+    let object = value.as_object();
+    TokenUsage {
+        input_tokens: object
+            .and_then(|object| get_i64(object, "input_tokens"))
+            .unwrap_or(0),
+        cached_input_tokens: object
+            .and_then(|object| get_detail_i64(object, "input_tokens_details", "cached_tokens"))
+            .unwrap_or(0),
+        output_tokens: object
+            .and_then(|object| get_i64(object, "output_tokens"))
+            .unwrap_or(0),
+        reasoning_output_tokens: object
+            .and_then(|object| get_detail_i64(object, "output_tokens_details", "reasoning_tokens"))
+            .unwrap_or(0),
+        total_tokens: object
+            .and_then(|object| get_i64(object, "total_tokens"))
+            .unwrap_or(0),
+        input_text_tokens: object.and_then(|object| {
+            get_detail_i64(object, "input_tokens_details", "text_tokens")
+                .or_else(|| get_i64(object, "input_text_tokens"))
+        }),
+        input_image_tokens: object.and_then(|object| {
+            get_detail_i64(object, "input_tokens_details", "image_tokens")
+                .or_else(|| get_i64(object, "input_image_tokens"))
+        }),
+        image_output_tokens: object.and_then(|object| {
+            get_detail_i64(object, "output_tokens_details", "image_tokens")
+                .or_else(|| get_i64(object, "image_output_tokens"))
+        }),
+        image_generation_total_tokens: object.and_then(|object| {
+            get_i64(object, "image_generation_total_tokens").or_else(|| {
+                get_detail_i64(object, "image_generation_tokens_details", "total_tokens")
+            })
+        }),
+        partial_images: object.and_then(|object| {
+            get_i64(object, "partial_images").or_else(|| {
+                get_detail_i64(object, "image_generation_tokens_details", "partial_images")
+            })
+        }),
+        usage_source: Some("responses".to_string()),
+        unknown_usage_details: object.and_then(collect_unknown_usage_details),
+    }
+}
+
+fn get_i64(object: &Map<String, Value>, field: &str) -> Option<i64> {
+    let value = object.get(field)?;
+    value
+        .as_i64()
+        .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
+}
+
+fn get_detail_i64(object: &Map<String, Value>, detail_field: &str, field: &str) -> Option<i64> {
+    object
+        .get(detail_field)
+        .and_then(Value::as_object)
+        .and_then(|details| get_i64(details, field))
+}
+
+fn collect_unknown_usage_details(object: &Map<String, Value>) -> Option<BTreeMap<String, Value>> {
+    let mut details = BTreeMap::new();
+    for (key, value) in object {
+        if is_known_usage_field(key) {
+            continue;
+        }
+        if let Some(summary) = sanitized_usage_value(value) {
+            details.insert(key.clone(), summary);
+        }
+    }
+
+    collect_unknown_detail_fields(
+        object,
+        "input_tokens_details",
+        &["cached_tokens", "text_tokens", "image_tokens"],
+        &mut details,
+    );
+    collect_unknown_detail_fields(
+        object,
+        "output_tokens_details",
+        &["reasoning_tokens", "image_tokens"],
+        &mut details,
+    );
+    collect_unknown_detail_fields(
+        object,
+        "image_generation_tokens_details",
+        &["total_tokens", "partial_images"],
+        &mut details,
+    );
+
+    (!details.is_empty()).then_some(details)
+}
+
+fn is_known_usage_field(field: &str) -> bool {
+    matches!(
+        field,
+        "input_tokens"
+            | "input_tokens_details"
+            | "output_tokens"
+            | "output_tokens_details"
+            | "total_tokens"
+            | "input_text_tokens"
+            | "input_image_tokens"
+            | "image_output_tokens"
+            | "image_generation_total_tokens"
+            | "image_generation_tokens_details"
+            | "partial_images"
+    )
+}
+
+fn collect_unknown_detail_fields(
+    object: &Map<String, Value>,
+    detail_field: &str,
+    known_fields: &[&str],
+    details: &mut BTreeMap<String, Value>,
+) {
+    let Some(value) = object.get(detail_field) else {
+        return;
+    };
+    let Some(object) = value.as_object() else {
+        if !value.is_null()
+            && let Some(summary) = sanitized_usage_value(value)
+        {
+            details.insert(detail_field.to_string(), summary);
+        }
+        return;
+    };
+
+    for (key, value) in object {
+        if known_fields.contains(&key.as_str()) {
+            continue;
+        }
+        if let Some(summary) = sanitized_usage_value(value) {
+            details.insert(format!("{detail_field}.{key}"), summary);
+        }
+    }
+}
+
+fn sanitized_usage_value(value: &Value) -> Option<Value> {
+    match value {
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => Some(value.clone()),
+        Value::Array(values) => Some(serde_json::json!({
+            "type": "array",
+            "length": values.len(),
+        })),
+        Value::Object(object) => {
+            let keys = object.keys().cloned().collect::<Vec<_>>();
+            Some(serde_json::json!({
+                "type": "object",
+                "keys": keys,
+            }))
+        }
+    }
 }
 
 impl ResponsesStreamEvent {
@@ -361,7 +480,7 @@ pub fn process_responses_event(
                     Ok(resp) => {
                         return Ok(Some(ResponseEvent::Completed {
                             response_id: resp.id,
-                            token_usage: resp.usage.map(Into::into),
+                            token_usage: resp.usage.as_ref().map(parse_response_completed_usage),
                             end_turn: resp.end_turn,
                         }));
                     }
@@ -723,6 +842,92 @@ mod tests {
                 assert_eq!(msg, "stream closed before response.completed")
             }
             other => panic!("unexpected second event: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn parses_completed_usage_details_leniently() {
+        let events = run_sse(vec![json!({
+            "type": "response.completed",
+            "response": {
+                "id": "resp1",
+                "usage": {
+                    "input_tokens": 100,
+                    "input_tokens_details": {
+                        "cached_tokens": 5,
+                        "text_tokens": 11,
+                        "image_tokens": 22,
+                        "audio_tokens": 3,
+                        "nested": {"foo": "bar"}
+                    },
+                    "output_tokens": 200,
+                    "output_tokens_details": {
+                        "reasoning_tokens": 7,
+                        "image_tokens": 33,
+                        "extra_array": [1, 2]
+                    },
+                    "total_tokens": 300,
+                    "image_generation_tokens_details": {
+                        "total_tokens": 44,
+                        "partial_images": 2,
+                        "unmodeled": "ok"
+                    },
+                    "unknown_scalar": "kept",
+                    "unknown_top_level": {"secret": "not copied"}
+                }
+            }
+        })])
+        .await;
+
+        let mut unknown_usage_details = BTreeMap::new();
+        unknown_usage_details.insert(
+            "image_generation_tokens_details.unmodeled".to_string(),
+            json!("ok"),
+        );
+        unknown_usage_details.insert("input_tokens_details.audio_tokens".to_string(), json!(3));
+        unknown_usage_details.insert(
+            "input_tokens_details.nested".to_string(),
+            json!({"type": "object", "keys": ["foo"]}),
+        );
+        unknown_usage_details.insert(
+            "output_tokens_details.extra_array".to_string(),
+            json!({"type": "array", "length": 2}),
+        );
+        unknown_usage_details.insert("unknown_scalar".to_string(), json!("kept"));
+        unknown_usage_details.insert(
+            "unknown_top_level".to_string(),
+            json!({"type": "object", "keys": ["secret"]}),
+        );
+
+        match events.as_slice() {
+            [
+                ResponseEvent::Completed {
+                    response_id,
+                    token_usage,
+                    end_turn,
+                },
+            ] => {
+                assert_eq!(response_id, "resp1");
+                assert!(end_turn.is_none());
+                assert_eq!(
+                    token_usage,
+                    &Some(TokenUsage {
+                        input_tokens: 100,
+                        cached_input_tokens: 5,
+                        output_tokens: 200,
+                        reasoning_output_tokens: 7,
+                        total_tokens: 300,
+                        input_text_tokens: Some(11),
+                        input_image_tokens: Some(22),
+                        image_output_tokens: Some(33),
+                        image_generation_total_tokens: Some(44),
+                        partial_images: Some(2),
+                        usage_source: Some("responses".to_string()),
+                        unknown_usage_details: Some(unknown_usage_details),
+                    })
+                );
+            }
+            other => panic!("unexpected events: {other:?}"),
         }
     }
 

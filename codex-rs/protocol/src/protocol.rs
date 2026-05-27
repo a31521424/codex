@@ -3,6 +3,7 @@
 //! Uses a SQ (Submission Queue) / EQ (Event Queue) pattern to asynchronously communicate
 //! between user and agent.
 
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fmt;
 use std::ops::Mul;
@@ -1903,6 +1904,27 @@ pub struct TokenUsage {
     pub reasoning_output_tokens: i64,
     #[ts(type = "number")]
     pub total_tokens: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
+    pub input_text_tokens: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
+    pub input_image_tokens: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
+    pub image_output_tokens: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
+    pub image_generation_total_tokens: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
+    pub partial_images: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "string")]
+    pub usage_source: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "Record<string, unknown>")]
+    pub unknown_usage_details: Option<BTreeMap<String, Value>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, JsonSchema, TS)]
@@ -2089,6 +2111,28 @@ impl TokenUsage {
         self.output_tokens += other.output_tokens;
         self.reasoning_output_tokens += other.reasoning_output_tokens;
         self.total_tokens += other.total_tokens;
+        add_optional_i64(&mut self.input_text_tokens, other.input_text_tokens);
+        add_optional_i64(&mut self.input_image_tokens, other.input_image_tokens);
+        add_optional_i64(&mut self.image_output_tokens, other.image_output_tokens);
+        add_optional_i64(
+            &mut self.image_generation_total_tokens,
+            other.image_generation_total_tokens,
+        );
+        add_optional_i64(&mut self.partial_images, other.partial_images);
+        if let Some(source) = &other.usage_source {
+            self.usage_source = Some(source.clone());
+        }
+        if let Some(other_details) = &other.unknown_usage_details {
+            self.unknown_usage_details
+                .get_or_insert_with(BTreeMap::new)
+                .extend(other_details.clone());
+        }
+    }
+}
+
+fn add_optional_i64(target: &mut Option<i64>, value: Option<i64>) {
+    if let Some(value) = value {
+        *target = Some(target.unwrap_or(0) + value);
     }
 }
 
@@ -5375,6 +5419,7 @@ mod tests {
             output_tokens: 0,
             reasoning_output_tokens: 0,
             total_tokens: 10,
+            ..TokenUsage::default()
         });
 
         let info = TokenUsageInfo::new_or_append(&initial, &last, Some(128_000))
@@ -5396,6 +5441,7 @@ mod tests {
             output_tokens: 0,
             reasoning_output_tokens: 0,
             total_tokens: 10,
+            ..TokenUsage::default()
         });
 
         let info =
@@ -5403,5 +5449,36 @@ mod tests {
                 .expect("new_or_append should return info");
 
         assert_eq!(info.model_context_window, Some(258_400));
+    }
+
+    #[test]
+    fn token_usage_add_assign_sums_optional_usage_details() {
+        let mut total = TokenUsage {
+            input_text_tokens: Some(4),
+            usage_source: Some("responses".to_string()),
+            ..TokenUsage::default()
+        };
+        total.add_assign(&TokenUsage {
+            input_text_tokens: Some(6),
+            input_image_tokens: Some(3),
+            image_output_tokens: Some(2),
+            image_generation_total_tokens: Some(11),
+            partial_images: Some(1),
+            usage_source: Some("responses".to_string()),
+            ..TokenUsage::default()
+        });
+
+        assert_eq!(
+            total,
+            TokenUsage {
+                input_text_tokens: Some(10),
+                input_image_tokens: Some(3),
+                image_output_tokens: Some(2),
+                image_generation_total_tokens: Some(11),
+                partial_images: Some(1),
+                usage_source: Some("responses".to_string()),
+                ..TokenUsage::default()
+            }
+        );
     }
 }

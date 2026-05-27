@@ -109,3 +109,36 @@ fn mcp_tool_call_result_preserves_meta_in_jsonl_event() {
     );
     assert!(serialized["item"]["result"].get("meta").is_none());
 }
+
+#[test]
+fn turn_completed_usage_serializes_enhanced_fields_only_when_present() {
+    let event = ThreadEvent::TurnCompleted(TurnCompletedEvent {
+        usage: Usage {
+            input_tokens: 10,
+            cached_input_tokens: 3,
+            output_tokens: 29,
+            reasoning_output_tokens: 7,
+            input_text_tokens: Some(6),
+            input_image_tokens: None,
+            image_output_tokens: Some(5),
+            image_generation_total_tokens: None,
+            partial_images: Some(2),
+            usage_source: Some("responses".to_string()),
+            unknown_usage_details: None,
+        },
+    });
+
+    let serialized = serde_json::to_value(event).expect("serialize turn.completed");
+
+    assert_eq!(serialized["usage"]["input_text_tokens"], json!(6));
+    assert_eq!(serialized["usage"]["image_output_tokens"], json!(5));
+    assert_eq!(serialized["usage"]["partial_images"], json!(2));
+    assert_eq!(serialized["usage"]["usage_source"], json!("responses"));
+    assert!(serialized["usage"].get("input_image_tokens").is_none());
+    assert!(
+        serialized["usage"]
+            .get("image_generation_total_tokens")
+            .is_none()
+    );
+    assert!(serialized["usage"].get("unknown_usage_details").is_none());
+}

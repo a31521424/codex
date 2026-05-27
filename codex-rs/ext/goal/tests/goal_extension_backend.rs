@@ -848,6 +848,7 @@ fn token_usage(
         output_tokens,
         reasoning_output_tokens,
         total_tokens,
+        ..TokenUsage::default()
     }
 }
 

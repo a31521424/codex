@@ -24,6 +24,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value as JsonValue;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use ts_rs::TS;
@@ -1265,6 +1266,20 @@ pub struct TokenUsageBreakdown {
     pub output_tokens: i64,
     #[ts(type = "number")]
     pub reasoning_output_tokens: i64,
+    #[ts(type = "number | null")]
+    pub input_text_tokens: Option<i64>,
+    #[ts(type = "number | null")]
+    pub input_image_tokens: Option<i64>,
+    #[ts(type = "number | null")]
+    pub image_output_tokens: Option<i64>,
+    #[ts(type = "number | null")]
+    pub image_generation_total_tokens: Option<i64>,
+    #[ts(type = "number | null")]
+    pub partial_images: Option<i64>,
+    #[ts(type = "string | null")]
+    pub usage_source: Option<String>,
+    #[ts(type = "Record<string, unknown> | null")]
+    pub unknown_usage_details: Option<BTreeMap<String, JsonValue>>,
 }
 
 impl From<CoreTokenUsage> for TokenUsageBreakdown {
@@ -1275,6 +1290,13 @@ impl From<CoreTokenUsage> for TokenUsageBreakdown {
             cached_input_tokens: value.cached_input_tokens,
             output_tokens: value.output_tokens,
             reasoning_output_tokens: value.reasoning_output_tokens,
+            input_text_tokens: value.input_text_tokens,
+            input_image_tokens: value.input_image_tokens,
+            image_output_tokens: value.image_output_tokens,
+            image_generation_total_tokens: value.image_generation_total_tokens,
+            partial_images: value.partial_images,
+            usage_source: value.usage_source,
+            unknown_usage_details: value.unknown_usage_details,
         }
     }
 }

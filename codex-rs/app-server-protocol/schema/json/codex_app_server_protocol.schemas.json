@@ -17951,6 +17951,34 @@
             "format": "int64",
             "type": "integer"
           },
+          "imageGenerationTotalTokens": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "imageOutputTokens": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "inputImageTokens": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "inputTextTokens": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "inputTokens": {
             "format": "int64",
             "type": "integer"
@@ -17959,6 +17987,13 @@
             "format": "int64",
             "type": "integer"
           },
+          "partialImages": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "reasoningOutputTokens": {
             "format": "int64",
             "type": "integer"
@@ -17966,6 +18001,19 @@
           "totalTokens": {
             "format": "int64",
             "type": "integer"
+          },
+          "unknownUsageDetails": {
+            "additionalProperties": true,
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "usageSource": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [

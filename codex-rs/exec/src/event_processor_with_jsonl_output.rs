@@ -123,6 +123,13 @@ impl EventProcessorWithJsonOutput {
             cached_input_tokens: usage.total.cached_input_tokens,
             output_tokens: usage.total.output_tokens,
             reasoning_output_tokens: usage.total.reasoning_output_tokens,
+            input_text_tokens: usage.total.input_text_tokens,
+            input_image_tokens: usage.total.input_image_tokens,
+            image_output_tokens: usage.total.image_output_tokens,
+            image_generation_total_tokens: usage.total.image_generation_total_tokens,
+            partial_images: usage.total.partial_images,
+            usage_source: usage.total.usage_source.clone(),
+            unknown_usage_details: usage.total.unknown_usage_details.clone(),
         }
     }
 

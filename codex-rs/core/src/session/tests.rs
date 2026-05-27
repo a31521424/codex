@@ -1695,6 +1695,7 @@ async fn record_initial_history_seeds_token_info_from_rollout() {
             output_tokens: 20,
             reasoning_output_tokens: 0,
             total_tokens: 30,
+            ..TokenUsage::default()
         },
         last_token_usage: TokenUsage {
             input_tokens: 3,
@@ -1702,6 +1703,7 @@ async fn record_initial_history_seeds_token_info_from_rollout() {
             output_tokens: 4,
             reasoning_output_tokens: 0,
             total_tokens: 7,
+            ..TokenUsage::default()
         },
         model_context_window: Some(1_000),
     };
@@ -1712,6 +1714,7 @@ async fn record_initial_history_seeds_token_info_from_rollout() {
             output_tokens: 200,
             reasoning_output_tokens: 25,
             total_tokens: 375,
+            ..TokenUsage::default()
         },
         last_token_usage: TokenUsage {
             input_tokens: 10,
@@ -1719,6 +1722,7 @@ async fn record_initial_history_seeds_token_info_from_rollout() {
             output_tokens: 20,
             reasoning_output_tokens: 5,
             total_tokens: 35,
+            ..TokenUsage::default()
         },
         model_context_window: Some(2_000),
     };
@@ -1886,6 +1890,7 @@ async fn record_token_usage_info_notifies_extension_contributors() {
         output_tokens: 20,
         reasoning_output_tokens: 3,
         total_tokens: 33,
+        ..TokenUsage::default()
     };
     let second_usage = TokenUsage {
         input_tokens: 7,
@@ -1893,6 +1898,7 @@ async fn record_token_usage_info_notifies_extension_contributors() {
         output_tokens: 8,
         reasoning_output_tokens: 5,
         total_tokens: 20,
+        ..TokenUsage::default()
     };
 
     session
@@ -2003,6 +2009,7 @@ async fn turn_start_lifecycle_exposes_turn_metadata_and_token_baseline() {
         output_tokens: 25,
         reasoning_output_tokens: 5,
         total_tokens: 130,
+        ..TokenUsage::default()
     };
     set_total_token_usage(&session, token_usage_at_turn_start.clone()).await;
 
@@ -8654,6 +8661,7 @@ fn post_goal_token_usage() -> TokenUsage {
         output_tokens: 30,
         reasoning_output_tokens: 5,
         total_tokens: 75,
+        ..TokenUsage::default()
     }
 }
 
@@ -8762,6 +8770,7 @@ async fn budget_limited_accounting_steers_active_turn_without_aborting() -> anyh
             output_tokens: 5,
             reasoning_output_tokens: 0,
             total_tokens: 25,
+            ..TokenUsage::default()
         },
     )
     .await;
@@ -8811,6 +8820,7 @@ async fn budget_limited_accounting_steers_active_turn_without_aborting() -> anyh
             output_tokens: 10,
             reasoning_output_tokens: 0,
             total_tokens: 40,
+            ..TokenUsage::default()
         },
     )
     .await;
@@ -9060,6 +9070,7 @@ async fn external_active_goal_set_marks_current_turn_for_accounting() -> anyhow:
             output_tokens: 40,
             reasoning_output_tokens: 5,
             total_tokens: 110,
+            ..TokenUsage::default()
         },
     )
     .await;

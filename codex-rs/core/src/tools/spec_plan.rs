@@ -46,8 +46,9 @@ use crate::tools::handlers::multi_agents_v2::SpawnAgentHandler as SpawnAgentHand
 use crate::tools::handlers::multi_agents_v2::WaitAgentHandler as WaitAgentHandlerV2;
 use crate::tools::handlers::view_image_spec::ViewImageToolOptions;
 use crate::tools::hosted_spec::WebSearchToolOptions;
-use crate::tools::hosted_spec::create_image_generation_tool;
+use crate::tools::hosted_spec::create_image_generation_tool_with_options;
 use crate::tools::hosted_spec::create_web_search_tool;
+use crate::tools::image_generation_options::resolve_image_generation_tool_options_from_env;
 use crate::tools::registry::CoreToolRuntime;
 use crate::tools::registry::ToolExposure;
 use crate::tools::registry::ToolRegistry;
@@ -142,18 +143,26 @@ struct CoreToolPlanContext<'a> {
     wait_agent_timeouts: WaitAgentTimeoutOptions,
 }
 
+#[cfg(test)]
 pub(crate) fn build_tool_router(
     turn_context: &TurnContext,
     params: ToolRouterParams<'_>,
 ) -> ToolRouter {
-    let (model_visible_specs, registry) = build_tool_specs_and_registry(turn_context, params);
-    ToolRouter::from_parts(registry, model_visible_specs)
+    try_build_tool_router(turn_context, params).expect("tool plan should be valid")
 }
 
-fn build_tool_specs_and_registry(
+pub(crate) fn try_build_tool_router(
     turn_context: &TurnContext,
     params: ToolRouterParams<'_>,
-) -> (Vec<ToolSpec>, ToolRegistry) {
+) -> Result<ToolRouter, String> {
+    let (model_visible_specs, registry) = try_build_tool_specs_and_registry(turn_context, params)?;
+    Ok(ToolRouter::from_parts(registry, model_visible_specs))
+}
+
+fn try_build_tool_specs_and_registry(
+    turn_context: &TurnContext,
+    params: ToolRouterParams<'_>,
+) -> Result<(Vec<ToolSpec>, ToolRegistry), String> {
     let ToolRouterParams {
         mcp_tools,
         deferred_mcp_tools,
@@ -174,10 +183,13 @@ fn build_tool_specs_and_registry(
         wait_agent_timeouts: wait_agent_timeout_options(turn_context),
     };
     let mut planned_tools = PlannedTools::default();
-    add_tool_sources(&context, &mut planned_tools);
+    add_tool_sources(&context, &mut planned_tools)?;
     append_tool_search_executor(&context, &mut planned_tools);
     prepend_code_mode_executors(&context, &mut planned_tools);
-    build_model_visible_specs_and_registry(turn_context, planned_tools)
+    Ok(build_model_visible_specs_and_registry(
+        turn_context,
+        planned_tools,
+    ))
 }
 
 fn build_model_visible_specs_and_registry(
@@ -238,7 +250,7 @@ fn spec_for_model_request(
     }
 }
 
-pub(crate) fn hosted_model_tool_specs(turn_context: &TurnContext) -> Vec<ToolSpec> {
+pub(crate) fn hosted_model_tool_specs(turn_context: &TurnContext) -> Result<Vec<ToolSpec>, String> {
     let mut specs = Vec::new();
     let provider_capabilities = turn_context.provider.capabilities();
     let web_search_mode = provider_capabilities
@@ -257,9 +269,10 @@ pub(crate) fn hosted_model_tool_specs(turn_context: &TurnContext) -> Vec<ToolSpe
         specs.push(web_search_tool);
     }
     if image_generation_tool_enabled(turn_context) {
-        specs.push(create_image_generation_tool("png"));
+        let options = resolve_image_generation_tool_options_from_env()?;
+        specs.push(create_image_generation_tool_with_options(options));
     }
-    specs
+    Ok(specs)
 }
 
 pub(crate) fn search_tool_enabled(turn_context: &TurnContext) -> bool {
@@ -496,7 +509,10 @@ fn code_mode_namespace_descriptions(
     namespace_descriptions
 }
 
-fn add_tool_sources(context: &CoreToolPlanContext<'_>, planned_tools: &mut PlannedTools) {
+fn add_tool_sources(
+    context: &CoreToolPlanContext<'_>,
+    planned_tools: &mut PlannedTools,
+) -> Result<(), String> {
     add_shell_tools(context, planned_tools);
     add_mcp_resource_tools(context, planned_tools);
     add_core_utility_tools(context, planned_tools);
@@ -504,9 +520,10 @@ fn add_tool_sources(context: &CoreToolPlanContext<'_>, planned_tools: &mut Plann
     add_mcp_runtime_tools(context, planned_tools);
     add_dynamic_tools(context, planned_tools);
     add_extension_tools(context, planned_tools);
-    for spec in hosted_model_tool_specs(context.turn_context) {
+    for spec in hosted_model_tool_specs(context.turn_context)? {
         planned_tools.add_hosted_spec(spec);
     }
+    Ok(())
 }
 
 fn add_shell_tools(context: &CoreToolPlanContext<'_>, planned_tools: &mut PlannedTools) {

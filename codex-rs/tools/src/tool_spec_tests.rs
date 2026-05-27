@@ -1,3 +1,10 @@
+use super::ImageGenerationAction;
+use super::ImageGenerationBackground;
+use super::ImageGenerationInputImageMask;
+use super::ImageGenerationModeration;
+use super::ImageGenerationOutputFormat;
+use super::ImageGenerationQuality;
+use super::ImageGenerationToolOptions;
 use super::ResponsesApiNamespace;
 use super::ResponsesApiWebSearchFilters;
 use super::ResponsesApiWebSearchUserLocation;
@@ -58,10 +65,7 @@ fn tool_spec_name_covers_all_variants() {
         "tool_search"
     );
     assert_eq!(
-        ToolSpec::ImageGeneration {
-            output_format: "png".to_string(),
-        }
-        .name(),
+        ToolSpec::ImageGeneration(ImageGenerationToolOptions::default()).name(),
         "image_generation"
     );
     assert_eq!(
@@ -115,6 +119,55 @@ fn web_search_config_converts_to_responses_api_types() {
             city: Some("San Francisco".to_string()),
             timezone: Some("America/Los_Angeles".to_string()),
         }
+    );
+}
+
+#[test]
+fn image_generation_tool_default_serializes_as_legacy_json() {
+    assert_eq!(
+        serde_json::to_value(ToolSpec::ImageGeneration(
+            ImageGenerationToolOptions::default()
+        ))
+        .expect("serialize image generation tool"),
+        json!({
+            "type": "image_generation",
+            "output_format": "png",
+        })
+    );
+}
+
+#[test]
+fn image_generation_tool_serializes_full_options() {
+    assert_eq!(
+        serde_json::to_value(ToolSpec::ImageGeneration(ImageGenerationToolOptions {
+            output_format: ImageGenerationOutputFormat::Webp,
+            action: Some(ImageGenerationAction::Edit),
+            size: Some("1536x1024".to_string()),
+            quality: Some(ImageGenerationQuality::High),
+            output_compression: Some(82),
+            background: Some(ImageGenerationBackground::Opaque),
+            partial_images: Some(3),
+            input_image_mask: Some(ImageGenerationInputImageMask {
+                file_id: Some("file_123".to_string()),
+                image_url: None,
+            }),
+            moderation: Some(ImageGenerationModeration::Low),
+        }))
+        .expect("serialize image generation tool"),
+        json!({
+            "type": "image_generation",
+            "output_format": "webp",
+            "action": "edit",
+            "size": "1536x1024",
+            "quality": "high",
+            "output_compression": 82,
+            "background": "opaque",
+            "partial_images": 3,
+            "input_image_mask": {
+                "file_id": "file_123",
+            },
+            "moderation": "low",
+        })
     );
 }
 

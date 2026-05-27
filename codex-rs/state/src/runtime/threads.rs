@@ -1944,6 +1944,7 @@ mod tests {
                         output_tokens: 0,
                         reasoning_output_tokens: 0,
                         total_tokens: 321,
+                        ..codex_protocol::protocol::TokenUsage::default()
                     },
                     last_token_usage: codex_protocol::protocol::TokenUsage::default(),
                     model_context_window: None,

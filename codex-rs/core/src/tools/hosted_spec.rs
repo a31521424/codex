@@ -1,6 +1,9 @@
 use codex_protocol::config_types::WebSearchConfig;
 use codex_protocol::config_types::WebSearchMode;
 use codex_protocol::openai_models::WebSearchToolType;
+#[cfg(test)]
+use codex_tools::ImageGenerationOutputFormat;
+use codex_tools::ImageGenerationToolOptions;
 use codex_tools::ToolSpec;
 
 const WEB_SEARCH_TEXT_AND_IMAGE_CONTENT_TYPES: [&str; 2] = ["text", "image"];
@@ -11,10 +14,22 @@ pub struct WebSearchToolOptions<'a> {
     pub web_search_tool_type: WebSearchToolType,
 }
 
+#[cfg(test)]
 pub fn create_image_generation_tool(output_format: &str) -> ToolSpec {
-    ToolSpec::ImageGeneration {
-        output_format: output_format.to_string(),
-    }
+    let output_format = match output_format {
+        "png" => ImageGenerationOutputFormat::Png,
+        "jpeg" => ImageGenerationOutputFormat::Jpeg,
+        "webp" => ImageGenerationOutputFormat::Webp,
+        other => panic!("unsupported image generation output_format: {other}"),
+    };
+    create_image_generation_tool_with_options(ImageGenerationToolOptions {
+        output_format,
+        ..Default::default()
+    })
+}
+
+pub fn create_image_generation_tool_with_options(options: ImageGenerationToolOptions) -> ToolSpec {
+    ToolSpec::ImageGeneration(options)
 }
 
 pub fn create_web_search_tool(options: WebSearchToolOptions<'_>) -> Option<ToolSpec> {

@@ -26,7 +26,7 @@ pub enum ToolSpec {
         parameters: JsonSchema,
     },
     #[serde(rename = "image_generation")]
-    ImageGeneration { output_format: String },
+    ImageGeneration(ImageGenerationToolOptions),
     // TODO: Understand why we get an error on web_search although the API docs
     // say it's supported.
     // https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses#:~:text=%7B%20type%3A%20%22web_search%22%20%7D%2C
@@ -56,7 +56,7 @@ impl ToolSpec {
             ToolSpec::Function(tool) => tool.name.as_str(),
             ToolSpec::Namespace(namespace) => namespace.name.as_str(),
             ToolSpec::ToolSearch { .. } => "tool_search",
-            ToolSpec::ImageGeneration { .. } => "image_generation",
+            ToolSpec::ImageGeneration(_) => "image_generation",
             ToolSpec::WebSearch { .. } => "web_search",
             ToolSpec::Freeform(tool) => tool.name.as_str(),
         }
@@ -86,6 +86,90 @@ pub fn create_tools_json_for_responses_api(
     }
 
     Ok(tools_json)
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct ImageGenerationToolOptions {
+    pub output_format: ImageGenerationOutputFormat,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action: Option<ImageGenerationAction>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quality: Option<ImageGenerationQuality>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_compression: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub background: Option<ImageGenerationBackground>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub partial_images: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_image_mask: Option<ImageGenerationInputImageMask>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub moderation: Option<ImageGenerationModeration>,
+}
+
+impl Default for ImageGenerationToolOptions {
+    fn default() -> Self {
+        Self {
+            output_format: ImageGenerationOutputFormat::Png,
+            action: None,
+            size: None,
+            quality: None,
+            output_compression: None,
+            background: None,
+            partial_images: None,
+            input_image_mask: None,
+            moderation: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ImageGenerationAction {
+    Auto,
+    Generate,
+    Edit,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ImageGenerationQuality {
+    Low,
+    Medium,
+    High,
+    Auto,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ImageGenerationOutputFormat {
+    Png,
+    Jpeg,
+    Webp,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ImageGenerationBackground {
+    Auto,
+    Opaque,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ImageGenerationModeration {
+    Auto,
+    Low,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct ImageGenerationInputImageMask {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]

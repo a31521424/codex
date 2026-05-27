@@ -373,6 +373,13 @@ fn token_usage_breakdown(usage: TokenUsage) -> codex_app_server_protocol::TokenU
         cached_input_tokens: usage.cached_input_tokens,
         output_tokens: usage.output_tokens,
         reasoning_output_tokens: usage.reasoning_output_tokens,
+        input_text_tokens: None,
+        input_image_tokens: None,
+        image_output_tokens: None,
+        image_generation_total_tokens: None,
+        partial_images: None,
+        usage_source: None,
+        unknown_usage_details: None,
     }
 }
 

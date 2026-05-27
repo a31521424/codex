@@ -3,6 +3,7 @@ use codex_protocol::config_types::WebSearchContextSize;
 use codex_protocol::config_types::WebSearchFilters;
 use codex_protocol::config_types::WebSearchUserLocation;
 use codex_protocol::config_types::WebSearchUserLocationType;
+use codex_tools::ImageGenerationToolOptions;
 use codex_tools::ResponsesApiWebSearchFilters;
 use codex_tools::ResponsesApiWebSearchUserLocation;
 use pretty_assertions::assert_eq;
@@ -11,9 +12,7 @@ use pretty_assertions::assert_eq;
 fn image_generation_tool_matches_expected_spec() {
     assert_eq!(
         create_image_generation_tool("png"),
-        ToolSpec::ImageGeneration {
-            output_format: "png".to_string(),
-        }
+        ToolSpec::ImageGeneration(ImageGenerationToolOptions::default())
     );
 }
 

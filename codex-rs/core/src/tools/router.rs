@@ -7,7 +7,9 @@ use crate::tools::context::ToolPayload;
 use crate::tools::registry::AnyToolResult;
 use crate::tools::registry::ToolArgumentDiffConsumer;
 use crate::tools::registry::ToolRegistry;
+#[cfg(test)]
 use crate::tools::spec_plan::build_tool_router;
+use crate::tools::spec_plan::try_build_tool_router;
 use codex_mcp::ToolInfo;
 use codex_protocol::dynamic_tools::DynamicToolSpec;
 use codex_protocol::models::ResponseItem;
@@ -45,8 +47,16 @@ pub(crate) struct ToolRouterParams<'a> {
 }
 
 impl ToolRouter {
+    #[cfg(test)]
     pub fn from_turn_context(turn_context: &TurnContext, params: ToolRouterParams<'_>) -> Self {
         build_tool_router(turn_context, params)
+    }
+
+    pub(crate) fn try_from_turn_context(
+        turn_context: &TurnContext,
+        params: ToolRouterParams<'_>,
+    ) -> Result<Self, String> {
+        try_build_tool_router(turn_context, params)
     }
 
     pub(crate) fn from_parts(registry: ToolRegistry, model_visible_specs: Vec<ToolSpec>) -> Self {
